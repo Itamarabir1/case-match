@@ -10,21 +10,24 @@ from src.schemas.query import SearchQuery
 from src.schemas.search_result import RankedCase, SearchResult
 from src.services.retrieval_service import RetrievalService
 
-PROMPT_TEMPLATE = """You are a knowledgeable legal assistant. Your task is to analyze a new court case by comparing it to similar past cases. Use the context from the similar cases to provide a detailed and structured analysis.
+PROMPT_TEMPLATE = """You are a knowledgeable legal assistant. Analyze the following similar court cases and the new case description. Use the context from the similar cases to provide a clear, structured analysis.
 
 Similar court cases:
 {context}
 
-New case:
+New case (user's situation):
 {new_case}
 
-Please provide your analysis in a clear and structured way, covering the following points:
+Provide your analysis with exactly these three sections (use these headings):
 
-1. **Similarity Analysis**: Explain why these cases are similar to the new case.
-2. **Legal Pattern**: Identify any recurring legal patterns, principles, or arguments that appear in these cases.
-3. **Common Outcome**: Summarize the outcomes in most of these cases and indicate what is likely to happen in the new case based on this pattern.
+1. **Legal Pattern**
+What legal pattern do these cases share? Identify recurring principles, arguments, or doctrines that appear across these cases.
 
-Format your response clearly with headings for each section."""
+2. **Common Outcome**
+What happened in most of these cases? Summarize the typical outcome and what is likely to happen in the new case based on this pattern.
+
+3. **Key Considerations**
+What should the plaintiff (or the person in the new case) focus on to strengthen their case? Practical steps or arguments to emphasize."""
 
 MAX_CHARS_PER_CASE = 3500
 MAX_CHARS_NEW_CASE = 4000

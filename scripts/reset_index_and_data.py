@@ -11,7 +11,12 @@ import shutil
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+_project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_project_root / "backend"))
+
+from dotenv import load_dotenv
+load_dotenv(_project_root / ".env")
+load_dotenv(_project_root / "backend" / ".env")
 
 from src.config import get_settings
 

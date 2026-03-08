@@ -3,7 +3,11 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+_project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_project_root / "backend"))
+from dotenv import load_dotenv
+load_dotenv(_project_root / ".env")
+load_dotenv(_project_root / "backend" / ".env")
 
 from src.repositories.chroma_repository import ChromaRepository
 from src.schemas.query import SearchQuery
@@ -12,13 +16,18 @@ from src.services.retrieval_service import RetrievalService
 VECTOR_PREVIEW_LEN = 10
 
 
+DEFAULT_CASE_FILE = "examples/new_case.txt"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Find the most similar indexed legal cases for a case text file.",
     )
     parser.add_argument(
         "file_path",
-        help="Path to a .txt file containing a legal case description.",
+        nargs="?",
+        default=None,
+        help=f"Path to a .txt file (default: {DEFAULT_CASE_FILE}).",
     )
     parser.add_argument(
         "--top-k",
@@ -31,8 +40,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    path = Path(args.file_path)
+    path = Path(args.file_path) if args.file_path else _project_root / DEFAULT_CASE_FILE
 
+    if not path.is_absolute():
+        path = (_project_root / path).resolve()
     if not path.exists() or not path.is_file():
         print(f"Error: file not found: {path}")
         sys.exit(1)

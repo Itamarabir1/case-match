@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     top_k: int = 5
     min_chunk_words: int = 5
     min_chunk_chars: int = 50
+    # Reranker (cross-encoder) – second stage after vector search
+    reranker_enabled: bool = True
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_candidates: int = 50
     port: int = 8000
     env: str = "development"
     courtlistener_api_token: str | None = None

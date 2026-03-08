@@ -16,8 +16,9 @@ os.chdir(_project_root)
 # Force .env to override system env vars so this script always uses the key from .env
 from dotenv import load_dotenv
 
+load_dotenv(_project_root / ".env", override=True)
+load_dotenv(_project_root / "backend" / ".env", override=True)
 _env_path = _project_root / ".env"
-load_dotenv(_env_path, override=True)
 
 # Debug: what was loaded from .env (avoid caching confusion)
 _env_key_raw = os.environ.get("GROQ_API_KEY") or ""

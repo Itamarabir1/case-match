@@ -1,25 +1,35 @@
 # מבנה הפרויקט
 
-קבצי הפרויקט המרכזיים **בשורש** (מקובל בתעשייה):
+## חוקים: .gitignore, .dockerignore, .env / .env.example
 
-| קובץ / תיקייה | תפקיד |
-|----------------|--------|
-| **README.md** | תיעוד לכל הפרויקט (לא רק לבקאנד) |
-| **requirements.txt** | תלויות Python לכל הפרויקט |
-| **pyproject.toml** | הגדרת הפרויקט Python (שם, גרסה, תלויות) |
-| **.dockerignore** | מה לא לשלוח ל-Docker build (פרויקט כולו) |
-| **.gitignore** | מה לא לעשות commit |
-| **docker-compose.yml** | הרצת שירותים (כרגע backend). |
-| **.env.example** | דוגמה למשתני סביבה בשורש (להעתקה ל-.env ליד docker-compose). |
+- **.gitignore** – **אחד לכל הפרויקט** (בשורש). קובע מה לא נכנס ל-commit בכל התיקיות.
+- **.dockerignore** – **אחד לבקאנד ואחד לפרונט**: `backend/.dockerignore`, `frontend/.dockerignore`. כל שירות קובע מה לא נשלח ל-build של ה-Docker שלו.
+- **.env.example** ו-**.env** (הקובץ האמיתי):
+  - **משותף** (בקאנד + פרונט או compose) → **בשורש**: `.env.example` / `.env`
+  - **ייחודי לבקאנד** → **backend/.env.example** / **backend/.env**
+  - **ייחודי לפרונט** → **frontend/.env.example** / **frontend/.env**  
+  docker-compose טוען: `env_file: [.env, backend/.env]` (שורש + בקאנד).
 
 ---
 
-## תיקיות – כל שירות עם Dockerfile ו-.env.example משלו
+## קבצים בשורש
+
+| קובץ | תפקיד |
+|------|--------|
+| **README.md** | תיעוד לכל הפרויקט |
+| **.gitignore** | אחד לכל הפרויקט – מה לא ב-commit |
+| **.dockerignore** | (לשימוש ב-build משורש, אם יש) |
+| **.env.example** | משתנים **משותפים** בלבד (להעתקה ל-.env) |
+| **requirements.txt**, **pyproject.toml**, **docker-compose.yml** | |
+
+---
+
+## תיקיות – כל שירות עם .dockerignore ו-.env.example משלו
 
 | תיקייה | תוכן |
 |--------|--------|
-| **backend/** | קוד ה-API: `src/` (כולל `src/config/` – הגדרות מ-.env). **Dockerfile** + **requirements.txt** + **.env.example** + **.dockerignore**. |
-| **frontend/** | `index.html` + README. **.env.example** (כרגע סטטי; אם יהיה build – משתנים כאן). אין Dockerfile כרגע (ממשק סטטי). |
+| **backend/** | **Dockerfile**, **.dockerignore**, **.env.example** (משתנים ייחודיים לבקאנד). קוד: `src/`. |
+| **frontend/** | **.dockerignore**, **.env.example** (משתנים ייחודיים לפרונט). `index.html`, README. אין Dockerfile כרגע (סטטי). |
 | **scripts/** | סקריפטים (אינדוקס, RAG, CLI) – רצים משורש, מייבאים מ-`backend`. |
 | **examples/** | קבצי דוגמה. |
 | **exports/** | ייצוא טקסטים (לא ב-Git). |

@@ -32,6 +32,8 @@
 
 ## 2. עקרונות ארכיטקטורה ועיצוב
 
+הפרויקט מיושר ל-**Architecture Guide** (Clean Architecture, Fullstack layout): קבצי שורש (.env.example, .gitignore, .dockerignore, pyproject.toml, docker-compose עם healthcheck), backend עם src/api, services, repositories, config, pipeline; Dockerfile רב־שלבי ולא־root; config רק דרך pydantic-settings.
+
 - **Pydantic:** מודלים ל-Document, Chunk, Query, SearchResult וכו' – ולידציה על קלט/פלט.
 - **Pipeline ברור:** שלבי אינדקס ושלבי query מוגדרים (פונקציות/מודולים נפרדים).
 - **System prompt:** אם יש LLM – פרומפט קבוע (תפקיד, פורמט, מגבלות) בקובץ/משתנה נפרד.
@@ -44,41 +46,50 @@
 
 ## 3. איך הפרויקט נראה (תצוגה מלמעלה)
 
-### 3.1 מבנה הפרויקט (שורש = מקום אחד לכל ההגדרות)
+### 3.1 מבנה הפרויקט
 
 ```
 Law/
 ├── README.md              ← תיעוד הפרויקט (קובץ אחד לכל הפרויקט)
-├── .env.example
-├── .gitignore
-├── .dockerignore          ← מה לא להעתיק ל-Docker (שורש)
-├── requirements.txt       ← תלויות Python (פרויקט – מקומי)
-├── pyproject.toml         ← הגדרת הפרויקט Python (פרויקט)
+├── STRUCTURE.md           ← סיכום מבנה ותיקיות
+├── .env.example           ← משתנים משותפים בלבד; העתק ל-.env
+├── .gitignore             ← אחד לכל הפרויקט
+├── .dockerignore
+├── .python-version        ← 3.12
+├── requirements.txt
+├── pyproject.toml
+├── uv.lock
 ├── docker-compose.yml
 ├── render.yaml
-├── backend/               ← שירות API: Dockerfile + .env.example + קוד
-│   ├── src/
-│   │   ├── api/, controllers/, middlewares/, services/, domain/,
-│   │   ├── repositories/, schemas/, infrastructure/, config/, utils/, pipeline/
-│   │   └── app.py
-│   ├── Dockerfile         ← בניית image ה-backend
+│
+├── backend/                ← שירות API
+│   ├── src/                ← api/, config/, domain/, infrastructure/, pipeline/, repositories/, schemas/, services/, utils/, app.py
+│   ├── Dockerfile
 │   ├── requirements.txt
-│   ├── .env.example       ← משתני סביבה של ה-backend
-│   ├── .dockerignore
+│   ├── .env.example        ← משתנים ייחודיים לבקאנד; העתק ל-backend/.env
+│   ├── .dockerignore       ← אחד לבקאנד
 │   └── README.md
+│
 ├── frontend/
 │   ├── index.html
-│   ├── .env.example       ← משתני סביבה של הפרונט (אופציונלי)
+│   ├── .env.example        ← משתנים ייחודיים לפרונט (לעתיד)
+│   ├── .dockerignore       ← אחד לפרונט
 │   └── README.md
-├── scripts/
+│
+├── scripts/                ← רצים משורש, מייבאים מ-backend
 │   ├── rebuild_first_courtlistener_cases.py
-│   ├── query_cli.py, match_case_file.py, find_best_match.py
-│   ├── decision_support.py, rag_analysis.py, show_index.py, reset_index_and_data.py
-│   └── ...
-├── examples/
-├── exports/
-├── chroma_db/
-└── tests/
+│   ├── rag_analysis.py
+│   ├── query_cli.py
+│   ├── match_case_file.py
+│   ├── find_best_match.py
+│   ├── decision_support.py
+│   ├── show_index.py
+│   └── reset_index_and_data.py
+│
+├── examples/               ← new_case.txt, sample_case.txt
+├── exports/                ← טקסטים ו-checkpoint (לא ב-Git)
+├── chroma_db/              ← DB Chroma (לא ב-Git)
+└── tests/                  ← unit/, integration/
 ```
 
 ### 3.2 זרימת בניית האינדקס (CourtListener)
@@ -141,9 +152,10 @@ uv sync
 # (Linux/macOS) הפעלת הסביבה
 # source .venv/bin/activate
 
-# העתקת .env (לאחר עריכה + COURTLISTENER_API_TOKEN)
-cp .env.example .env   # Linux/macOS
-# copy .env.example .env   # Windows CMD
+# העתקת .env: משותף בשורש, ייחודי לבקאנד בתיקיית backend
+cp .env.example .env                    # שורש – משתנים משותפים
+cp backend/.env.example backend/.env    # בקאנד – משתנים ייחודיים (API keys וכו')
+# ערוך backend/.env והוסף COURTLISTENER_API_TOKEN, GROQ_API_KEY וכו'
 
 # בניית אינדקס מ-CourtListener (ראה למטה: CourtListener – אינדוקס והמשך)
 

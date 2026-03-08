@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Legal Case Retrieval</title>
+  <title>Case-Match</title>
   <style>
     :root {
       --bg: #f8fafc;
@@ -16,6 +16,9 @@
       --error: #b91c1c;
       --radius: 8px;
       --shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --bar-high: #059669;
+      --bar-mid: #ca8a04;
+      --bar-low: #dc2626;
     }
     * { box-sizing: border-box; }
     body {
@@ -27,11 +30,20 @@
       line-height: 1.5;
     }
     .container { max-width: 900px; margin: 0 auto; }
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      margin: 0 0 24px 0;
+    header {
+      margin-bottom: 28px;
+      text-align: center;
+    }
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 6px 0;
       color: var(--text);
+    }
+    header .subtitle {
+      font-size: 1rem;
+      color: var(--text-muted);
+      margin: 0;
     }
     label {
       display: block;
@@ -41,7 +53,8 @@
     }
     textarea {
       width: 100%;
-      min-height: 160px;
+      min-height: 200px;
+      rows: 10;
       padding: 12px 14px;
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -56,6 +69,21 @@
       outline: none;
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+    }
+    .row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .row select {
+      padding: 8px 12px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
     }
     .actions {
       display: flex;
@@ -99,20 +127,28 @@
       box-shadow: var(--shadow);
     }
     .case-card .title {
-      font-weight: 600;
+      font-weight: 700;
       margin-bottom: 4px;
     }
     .case-card .meta {
       font-size: 0.875rem;
       color: var(--text-muted);
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
-    .case-card .score {
-      display: inline-block;
-      background: #ecfdf5;
-      color: #047857;
-      padding: 2px 8px;
+    .relevance-bar {
+      height: 8px;
       border-radius: 4px;
+      background: var(--border);
+      overflow: hidden;
+      margin-bottom: 6px;
+      max-width: 200px;
+    }
+    .relevance-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s ease;
+    }
+    .case-card .score-label {
       font-size: 0.875rem;
       font-weight: 500;
       margin-bottom: 8px;
@@ -120,19 +156,56 @@
     .case-card .snippets {
       font-size: 0.9rem;
       color: var(--text);
+      margin-top: 8px;
     }
-    .case-card .snippets p { margin: 6px 0 0 0; }
+    .case-card .snippets p { margin: 4px 0 0 0; }
     .case-card .snippets p:first-child { margin-top: 0; }
+    .case-card a.external {
+      font-size: 0.875rem;
+      color: var(--primary);
+      text-decoration: none;
+      margin-top: 8px;
+      display: inline-block;
+    }
+    .case-card a.external:hover { text-decoration: underline; }
+    .analysis-section {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .analysis-section h2 {
+      font-size: 1.25rem;
+      margin: 0 0 16px 0;
+    }
+    .analysis-block {
+      margin-bottom: 20px;
+    }
+    .analysis-block h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 8px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .analysis-block .content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+      color: var(--text);
+    }
     .analysis-box {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 20px;
-      margin-top: 24px;
-      box-shadow: var(--shadow);
+      margin-top: 12px;
       white-space: pre-wrap;
+      font-size: 0.95rem;
     }
-    .analysis-box h2 { margin-top: 0; }
     .spinner {
       display: inline-block;
       width: 20px;
@@ -154,33 +227,51 @@
       margin-top: 16px;
     }
     .hidden { display: none; }
+    @media (max-width: 640px) {
+      body { padding: 16px; }
+      .actions { flex-direction: column; }
+      .actions button { width: 100%; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Legal Case Retrieval</h1>
-    <label for="query">Legal case description or question</label>
-    <textarea id="query" placeholder="Describe the legal case or issue..."></textarea>
+    <header>
+      <h1>Case-Match</h1>
+      <p class="subtitle">Find similar legal cases based on your situation</p>
+    </header>
+
+    <label for="query">Describe your legal situation</label>
+    <textarea id="query" rows="10" placeholder="Describe your legal situation..."></textarea>
+    <div class="row">
+      <label for="topK" style="margin-bottom:0">Number of results</label>
+      <select id="topK">
+        <option value="3">3</option>
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+      </select>
+    </div>
     <div class="actions">
-      <button type="button" class="secondary" id="btnSearch">Find Similar Cases</button>
-      <button type="button" id="btnAnalyze">Full RAG Analysis</button>
+      <button type="button" id="btnSearch">🔍 Find Similar Cases</button>
+      <button type="button" id="btnAnalyze">🤖 Analyze with AI</button>
     </div>
 
     <div id="error" class="error hidden"></div>
     <div id="results" class="results hidden">
-      <h2 id="resultsTitle">Results</h2>
+      <h2 id="resultsTitle">Similar Cases</h2>
       <div id="casesList"></div>
-      <div id="analysisSection" class="hidden">
-        <h2>RAG Analysis</h2>
-        <div id="analysisContent" class="analysis-box"></div>
+      <div id="analysisSection" class="analysis-section hidden">
+        <h2>AI Analysis</h2>
+        <div id="analysisContent"></div>
       </div>
     </div>
   </div>
 
   <script>
-    // When opening from file://, call backend on port 8000
     const API_BASE = (window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
+    const COURTLISTENER_BASE = 'https://www.courtlistener.com/opinion/';
     const queryEl = document.getElementById('query');
+    const topKEl = document.getElementById('topK');
     const btnSearch = document.getElementById('btnSearch');
     const btnAnalyze = document.getElementById('btnAnalyze');
     const errorEl = document.getElementById('error');
@@ -200,15 +291,24 @@
       errorEl.classList.add('hidden');
     }
 
-    function setLoading(button, loading) {
+    function setLoading(loading) {
+      btnSearch.disabled = loading;
+      btnAnalyze.disabled = loading;
       if (loading) {
-        button.disabled = true;
-        button.dataset.originalText = button.textContent;
-        button.innerHTML = '<span class="spinner"></span> Loading...';
+        btnSearch.dataset.originalText = btnSearch.textContent;
+        btnSearch.innerHTML = '<span class="spinner"></span> Loading...';
+        btnAnalyze.dataset.originalText = btnAnalyze.textContent;
+        btnAnalyze.innerHTML = '<span class="spinner"></span> Loading...';
       } else {
-        button.disabled = false;
-        button.textContent = button.dataset.originalText || button.textContent;
+        btnSearch.textContent = btnSearch.dataset.originalText || '🔍 Find Similar Cases';
+        btnAnalyze.textContent = btnAnalyze.dataset.originalText || '🤖 Analyze with AI';
       }
+    }
+
+    function barColor(pct) {
+      if (pct >= 60) return 'var(--bar-high)';
+      if (pct >= 40) return 'var(--bar-mid)';
+      return 'var(--bar-low)';
     }
 
     function renderCases(cases) {
@@ -217,15 +317,19 @@
         return;
       }
       casesList.innerHTML = cases.map(c => {
-        const meta = [c.court, c.date_filed, c.state].filter(Boolean).join(' · ');
+        const pct = c.score_percent != null ? c.score_percent : Math.round((c.score || 0) * 100);
+        const meta = [c.court, c.date_filed].filter(Boolean).join(' · ');
         const title = c.title || c.doc_id;
-        const snippets = (c.snippets || []).slice(0, 3).map(s => `<p>${escapeHtml(s)}</p>`).join('');
+        const snippets = (c.snippets || []).slice(0, 2).map(s => `<p>${escapeHtml(s)}</p>`).join('');
+        const courtUrl = COURTLISTENER_BASE + escapeHtml(c.doc_id) + '/';
         return `
           <div class="case-card">
             <div class="title">${escapeHtml(title)}</div>
             ${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ''}
-            <span class="score">${c.score_percent != null ? c.score_percent : Math.round((c.score || 0) * 100)}% similarity</span>
+            <div class="relevance-bar"><div class="relevance-bar-fill" style="width:${pct}%;background:${barColor(pct)}"></div></div>
+            <div class="score-label">${pct}% match</div>
             ${snippets ? `<div class="snippets">${snippets}</div>` : ''}
+            <a class="external" href="${courtUrl}" target="_blank" rel="noopener">View on CourtListener</a>
           </div>
         `;
       }).join('');
@@ -237,19 +341,45 @@
       return div.innerHTML;
     }
 
+    function parseAnalysisSections(text) {
+      if (!text || !text.trim()) return [];
+      const sections = [
+        { id: 'pattern', title: '🔍 Legal Pattern', pattern: /(\*\*Legal Pattern\*\*|## Legal Pattern|Legal Pattern:)\s*([\s\S]*?)(?=\*\*|##|$)/i },
+        { id: 'outcome', title: '⚖️ Common Outcome', pattern: /(\*\*Common Outcome\*\*|## Common Outcome|Common Outcome:)\s*([\s\S]*?)(?=\*\*|##|$)/i },
+        { id: 'considerations', title: '🎯 Key Considerations', pattern: /(\*\*Key Considerations\*\*|## Key Considerations|Key Considerations:)\s*([\s\S]*?)(?=\*\*|##|$)/i },
+      ];
+      const result = [];
+      for (const s of sections) {
+        const m = text.match(s.pattern);
+        result.push({ title: s.title, content: m ? m[2].trim() : '' });
+      }
+      if (result.every(r => !r.content)) {
+        return [{ title: 'Analysis', content: text.trim() }];
+      }
+      return result;
+    }
+
+    function renderAnalysis(analysisText) {
+      const sections = parseAnalysisSections(analysisText);
+      analysisContent.innerHTML = sections.map(s =>
+        `<div class="analysis-block"><h3>${escapeHtml(s.title)}</h3><div class="content">${escapeHtml(s.content) || '(No content)'}</div></div>`
+      ).join('');
+    }
+
     async function doSearch() {
       const query = queryEl.value.trim();
       if (!query) {
-        showError('Please enter a case description.');
+        showError('Please describe your legal situation.');
         return;
       }
       clearError();
-      setLoading(btnSearch, true);
+      setLoading(true);
       try {
+        const topK = parseInt(topKEl.value, 10);
         const res = await fetch(API_BASE + '/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, top_k: 5 }),
+          body: JSON.stringify({ query, top_k: topK }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
@@ -260,23 +390,24 @@
       } catch (e) {
         showError(e.message || 'Search failed.');
       } finally {
-        setLoading(btnSearch, false);
+        setLoading(false);
       }
     }
 
     async function doAnalyze() {
       const query = queryEl.value.trim();
       if (!query) {
-        showError('Please enter a case description.');
+        showError('Please describe your legal situation.');
         return;
       }
       clearError();
-      setLoading(btnAnalyze, true);
+      setLoading(true);
       try {
+        const topK = parseInt(topKEl.value, 10);
         const res = await fetch(API_BASE + '/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, top_k: 5 }),
+          body: JSON.stringify({ query, top_k: topK }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
@@ -285,14 +416,14 @@
         renderCases(data.cases || []);
         if (data.analysis != null && data.analysis !== '') {
           analysisSection.classList.remove('hidden');
-          analysisContent.textContent = data.analysis;
+          renderAnalysis(data.analysis);
         } else {
           analysisSection.classList.add('hidden');
         }
       } catch (e) {
         showError(e.message || 'Analysis failed.');
       } finally {
-        setLoading(btnAnalyze, false);
+        setLoading(false);
       }
     }
 

@@ -1,0 +1,15 @@
+# Frontend – exclude from Docker build context (when frontend has a Dockerfile)
+node_modules
+.venv
+venv
+__pycache__
+*.pyc
+.git
+.env
+.env.*
+dist
+.next
+*.md
+.pytest_cache
+.coverage
+htmlcov

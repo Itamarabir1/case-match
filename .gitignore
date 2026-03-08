@@ -38,11 +38,18 @@ env/
 *.swo
 *~
 
-# Chroma / data
+# Heavy data – keep out of Git (DB, vectors, full texts)
 chroma_db/
 exports/
 *.db
 *.sqlite
+data/
+datasets/
+models/
+*.bin
+*.pt
+*.pth
+*.onnx
 
 # Logs and temp
 *.log

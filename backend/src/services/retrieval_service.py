@@ -1,5 +1,6 @@
 """Use case: search by query. Business logic and orchestration only."""
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from src.config import get_settings
 from src.repositories import ChromaRepository, EmbeddingRepository
@@ -8,19 +9,33 @@ from src.schemas.query import SearchQuery
 from src.schemas.search_result import RankedCase, SearchResult
 from src.utils.logger import get_logger
 
+if TYPE_CHECKING:
+    from src.infrastructure.reranker_client import RerankerClient
+
 logger = get_logger(__name__)
 
 
 class RetrievalService:
-    """Orchestrates: query -> embed -> search -> validate -> aggregate. No HTTP, no direct DB."""
+    """Orchestrates: query -> embed -> search [-> rerank] -> validate -> aggregate. No HTTP, no direct DB."""
 
     def __init__(
         self,
         vector_store: ChromaRepository | None = None,
         embedding_repo: EmbeddingRepository | None = None,
+        reranker: "RerankerClient | None" = None,
     ) -> None:
         self._store = vector_store or ChromaRepository()
         self._embedding = embedding_repo or EmbeddingRepository()
+        settings = get_settings()
+        if reranker is not None:
+            self._reranker = reranker
+        elif settings.reranker_enabled:
+            from src.infrastructure.reranker_client import RerankerClient
+            self._reranker = RerankerClient()
+        else:
+            self._reranker = None
+        # Debug: confirm reranker config at init
+        print(f"[RERANKER INIT] reranker_enabled={settings.reranker_enabled}, _reranker={'injected' if reranker is not None else 'created' if self._reranker else 'None'}")
 
     def search(self, request: SearchQuery) -> SearchResult:
         """Return ranked cases: aggregate chunks by doc_id, score = mean of chunk scores."""
@@ -33,7 +48,21 @@ class RetrievalService:
             return SearchResult(query=request.query, cases=[])
 
         query_embedding = self._embedding.embed([request.query])[0]
-        chunks = self._store.search(query_embedding, top_k=top_k * 2)
+
+        if self._reranker is not None:
+            retrieve_k = settings.reranker_candidates
+            chunks = self._store.search(query_embedding, top_k=retrieve_k)
+            qpreview = request.query[:50] + "..." if len(request.query) > 50 else request.query
+            print(f"[RERANKER] query='{qpreview}' ({len(request.query)} chars), chunks={len(chunks)}")
+            before_scores = [round(c.score, 4) for c in chunks[:5]]
+            chunks = self._reranker.rerank(request.query, chunks)
+            after_scores = [round(c.score, 4) for c in chunks[:5]]
+            print(f"[RERANKER] Before rerank (first 5): {before_scores}")
+            print(f"[RERANKER] After rerank (first 5):  {after_scores}")
+            chunks = chunks[: top_k * 2]
+        else:
+            print(f"[RERANKER] SKIP (reranker is None) – using Chroma scores only")
+            chunks = self._store.search(query_embedding, top_k=top_k * 2)
 
         # Validate: drop too short
         valid = [

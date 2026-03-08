@@ -18,7 +18,8 @@ from src.services.rag_service import GroqUnavailableError, run_rag
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load config on startup. No heavy init (Chroma/embedding lazy)."""
-    get_settings()
+    s = get_settings()
+    print(f"[RERANKER] At app startup: reranker_enabled={s.reranker_enabled}")
     yield
     # shutdown if needed
     pass
