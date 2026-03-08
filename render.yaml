@@ -1,0 +1,17 @@
+# Render.com Blueprint – deploy as Docker web service
+# Repo: https://github.com/Itamarabir1/case-match
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: case-match
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: PORT
+        value: 8000
+      # Add GROQ_API_KEY and other secrets in Render Dashboard → Environment
+      # Optional: EMBEDDING_MODEL, CHROMA_PATH, GROQ_MODEL, etc.
+    # Optional: mount persistent disk for chroma_db if you need index to persist
+    # disk:
+    #   name: chroma_data
+    #   mountPath: /app/chroma_db

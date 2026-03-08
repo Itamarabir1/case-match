@@ -1,0 +1,20 @@
+# Virtual envs and caches
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+htmlcov
+
+# Git and env (never in image)
+.git
+.env
+.env.*
+# Data (mount at runtime)
+chroma_db
+exports
+
+# Docs (not needed in image)
+*.md
+.examples

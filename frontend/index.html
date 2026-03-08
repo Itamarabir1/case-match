@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Legal Case Retrieval</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --primary: #0f766e;
+      --primary-hover: #0d9488;
+      --error: #b91c1c;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 0 0 24px 0;
+      color: var(--text);
+    }
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    textarea {
+      width: 100%;
+      min-height: 160px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 15px;
+      font-family: inherit;
+      resize: vertical;
+      background: var(--surface);
+      color: var(--text);
+    }
+    textarea::placeholder { color: var(--text-muted); }
+    textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 15px;
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+    }
+    button:hover { background: var(--primary-hover); }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    button.secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.secondary:hover { background: var(--bg); }
+    .results { margin-top: 32px; }
+    .results h2 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin: 0 0 16px 0;
+    }
+    .case-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+    .case-card .title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .case-card .meta {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .case-card .score {
+      display: inline-block;
+      background: #ecfdf5;
+      color: #047857;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    .case-card .snippets {
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+    .case-card .snippets p { margin: 6px 0 0 0; }
+    .case-card .snippets p:first-child { margin-top: 0; }
+    .analysis-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-top: 24px;
+      box-shadow: var(--shadow);
+      white-space: pre-wrap;
+    }
+    .analysis-box h2 { margin-top: 0; }
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: var(--error);
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      margin-top: 16px;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Legal Case Retrieval</h1>
+    <label for="query">Legal case description or question</label>
+    <textarea id="query" placeholder="Describe the legal case or issue..."></textarea>
+    <div class="actions">
+      <button type="button" class="secondary" id="btnSearch">Find Similar Cases</button>
+      <button type="button" id="btnAnalyze">Full RAG Analysis</button>
+    </div>
+
+    <div id="error" class="error hidden"></div>
+    <div id="results" class="results hidden">
+      <h2 id="resultsTitle">Results</h2>
+      <div id="casesList"></div>
+      <div id="analysisSection" class="hidden">
+        <h2>RAG Analysis</h2>
+        <div id="analysisContent" class="analysis-box"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // When opening from file://, call backend on port 8000
+    const API_BASE = (window.location.protocol === 'file:') ? 'http://localhost:8000' : '';
+    const queryEl = document.getElementById('query');
+    const btnSearch = document.getElementById('btnSearch');
+    const btnAnalyze = document.getElementById('btnAnalyze');
+    const errorEl = document.getElementById('error');
+    const resultsEl = document.getElementById('results');
+    const resultsTitle = document.getElementById('resultsTitle');
+    const casesList = document.getElementById('casesList');
+    const analysisSection = document.getElementById('analysisSection');
+    const analysisContent = document.getElementById('analysisContent');
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.remove('hidden');
+      resultsEl.classList.add('hidden');
+    }
+
+    function clearError() {
+      errorEl.classList.add('hidden');
+    }
+
+    function setLoading(button, loading) {
+      if (loading) {
+        button.disabled = true;
+        button.dataset.originalText = button.textContent;
+        button.innerHTML = '<span class="spinner"></span> Loading...';
+      } else {
+        button.disabled = false;
+        button.textContent = button.dataset.originalText || button.textContent;
+      }
+    }
+
+    function renderCases(cases) {
+      if (!cases || cases.length === 0) {
+        casesList.innerHTML = '<p>No similar cases found.</p>';
+        return;
+      }
+      casesList.innerHTML = cases.map(c => {
+        const meta = [c.court, c.date_filed, c.state].filter(Boolean).join(' · ');
+        const title = c.title || c.doc_id;
+        const snippets = (c.snippets || []).slice(0, 3).map(s => `<p>${escapeHtml(s)}</p>`).join('');
+        return `
+          <div class="case-card">
+            <div class="title">${escapeHtml(title)}</div>
+            ${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ''}
+            <span class="score">${c.score_percent != null ? c.score_percent : Math.round((c.score || 0) * 100)}% similarity</span>
+            ${snippets ? `<div class="snippets">${snippets}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(s) {
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    async function doSearch() {
+      const query = queryEl.value.trim();
+      if (!query) {
+        showError('Please enter a case description.');
+        return;
+      }
+      clearError();
+      setLoading(btnSearch, true);
+      try {
+        const res = await fetch(API_BASE + '/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, top_k: 5 }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || res.statusText);
+        resultsEl.classList.remove('hidden');
+        analysisSection.classList.add('hidden');
+        resultsTitle.textContent = 'Similar Cases';
+        renderCases(data.cases || []);
+      } catch (e) {
+        showError(e.message || 'Search failed.');
+      } finally {
+        setLoading(btnSearch, false);
+      }
+    }
+
+    async function doAnalyze() {
+      const query = queryEl.value.trim();
+      if (!query) {
+        showError('Please enter a case description.');
+        return;
+      }
+      clearError();
+      setLoading(btnAnalyze, true);
+      try {
+        const res = await fetch(API_BASE + '/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, top_k: 5 }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || res.statusText);
+        resultsEl.classList.remove('hidden');
+        resultsTitle.textContent = 'Similar Cases & Analysis';
+        renderCases(data.cases || []);
+        if (data.analysis != null && data.analysis !== '') {
+          analysisSection.classList.remove('hidden');
+          analysisContent.textContent = data.analysis;
+        } else {
+          analysisSection.classList.add('hidden');
+        }
+      } catch (e) {
+        showError(e.message || 'Analysis failed.');
+      } finally {
+        setLoading(btnAnalyze, false);
+      }
+    }
+
+    btnSearch.addEventListener('click', doSearch);
+    btnAnalyze.addEventListener('click', doAnalyze);
+  </script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+[project]
+name = "case-match"
+version = "0.1.0"
+description = "Legal case retrieval – semantic search and RAG over court cases"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "sentence-transformers>=2.2.0",
+    "chromadb>=0.4.0",
+    "datasets>=2.14.0",
+    "huggingface-hub>=0.17.0",
+    "langchain-text-splitters>=0.0.1",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn[standard]>=0.22.0",
+    "pytest>=7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+]

@@ -1,0 +1,28 @@
+IN THE SUPERIOR COURT OF NEW YORK
+
+Case Title: Adams Trading LLC v. Northline Logistics Inc.
+Date: 2024-11-19
+
+Summary of Facts:
+Adams Trading LLC entered into a supply contract with Northline Logistics Inc.
+under which Northline agreed to deliver industrial materials in three monthly
+shipments. The contract included a penalty clause for late or incomplete
+delivery and referenced Section 12 for notice and cure obligations.
+
+Adams alleges that Northline failed to deliver the second shipment on time and
+delivered only 40 percent of the third shipment. Adams sent written notice and
+requested cure within ten business days. Northline did not fully cure and
+argues that regional transport disruptions made performance impossible.
+
+Claims:
+1) Material breach of contract
+2) Damages for lost business opportunities
+3) Enforcement of contractual penalty clause
+
+Defenses:
+1) Commercial impracticability due to transport disruption
+2) Partial performance substantially satisfied the contract
+3) Penalty clause is unenforceable as punitive
+
+Relief Requested:
+Adams requests compensatory damages, contractual penalties, and attorney fees.
