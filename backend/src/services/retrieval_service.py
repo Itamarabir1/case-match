@@ -7,12 +7,9 @@ from src.repositories import ChromaRepository, EmbeddingRepository
 from src.schemas.chunk import ChunkOut
 from src.schemas.query import SearchQuery
 from src.schemas.search_result import RankedCase, SearchResult
-from src.utils.logger import get_logger
 
 if TYPE_CHECKING:
     from src.infrastructure.reranker_client import RerankerClient
-
-logger = get_logger(__name__)
 
 
 class RetrievalService:

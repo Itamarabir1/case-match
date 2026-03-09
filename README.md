@@ -147,7 +147,7 @@ uv sync
 # Copy .env: shared at root, backend-specific in backend/
 cp .env.example .env                    # Root – shared vars
 cp backend/.env.example backend/.env    # Backend – API keys etc.
-# Edit backend/.env and add COURTLISTENER_API_TOKEN, GROQ_API_KEY, etc.
+# Edit backend/.env and add COURTLISTENER_API_TOKEN, GROQ_API_KEY; optionally LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY for observability.
 
 # Index build: after starting the server – via UI or API (POST /index/rebuild, GET /index/stats, POST /index/reset).
 
@@ -222,9 +222,27 @@ Build **context** from the top 5 similar cases (full text from `exports/.../text
 
 **Example input (the “prompt”):** The text you type in the UI (or paste from a file) is the **new case** description that gets sent to the LLM. You can use the sample in `examples/new_case.txt` as a template: paste its contents into the text box, run “Find Similar Cases”, then “Analyze these results with AI”. The same string is used both as the search query and as the `{new_case}` placeholder in the RAG user prompt (see `backend/src/prompts/rag.py`).
 
-**Streaming (POST /analyze):** The `/analyze` endpoint returns **Server-Sent Events (SSE)** instead of a single JSON body. Flow: (1) Backend runs retrieval and sends a first event with `type: "cases"` and the list of similar cases. (2) Then it streams the Groq LLM response token-by-token in events `type: "token"` with `content`. (3) A final event `type: "done"` signals the end. The frontend shows cases immediately, then displays the AI analysis text in real time as tokens arrive; when `done` is received it parses the accumulated JSON and renders the structured view (Legal Pattern, Common Outcome, Key Considerations). This avoids waiting for the full response before anything appears.
+**SSE (POST /analyze):** The `/analyze` endpoint returns **Server-Sent Events (SSE)**. Flow: (1) Backend runs retrieval and sends `type: "cases"` with the list of similar cases. (2) It calls Groq once (non-streaming, because Groq Structured Outputs do not support streaming) and sends the full analysis in one event `type: "token"` with `content`. (3) A final event `type: "done"` includes `duration_ms`, `model`, and optional `usage` (token counts). The frontend parses the JSON and renders Legal Pattern, Common Outcome, Key Considerations, and a small trace line (model · tokens · time).
 
 **Output:** Accumulated stream is parsed as `analysis_json` (Pydantic/JSON Schema: `legal_pattern`, `common_outcome`, `key_considerations`, optional `summary`, `caveats`). Prompts (system + user template) are in `backend/src/prompts/rag.py`.
+
+### Langfuse – LLM observability
+
+[Langfuse](https://langfuse.com) records every **Groq** call used for RAG analysis: prompt, response, latency, and token usage. This helps with debugging and cost/latency analysis.
+
+- **When it runs:** Only for the **Analyze** flow (POST /analyze). Search is not traced so it is never blocked by observability.
+- **Optional:** If `LANGFUSE_PUBLIC_KEY` is empty or unset, tracing is skipped; the app works normally without Langfuse.
+- **Non-blocking:** Flush runs in a background thread, so the HTTP response is never delayed by Langfuse.
+
+**Setup (optional):** In `backend/.env`:
+
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+Get keys from [Langfuse Cloud](https://cloud.langfuse.com). Do not commit real keys; use `.env` only. In the UI, after an analysis you'll see a small line with model name, token count, and duration (e.g. `llama-3.1-8b-instant · 4809 tokens · 1529ms`). The same data appears in the Langfuse dashboard with full prompt and response.
 
 **Usage:** Via API – `POST /analyze` (frontend: “Analyze these results with AI” after search). Settings in `.env`: `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_BASE_URL`, `EXPORTS_TEXTS_DIR`.
 

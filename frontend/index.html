@@ -309,6 +309,12 @@
         <div id="analysisStreaming" class="analysis-streaming hidden"></div>
         <div id="analysisSummary" class="analysis-summary hidden"></div>
         <div id="analysisContent"></div>
+        <div id="langfuse-info" style="display:none; margin-top: 16px; padding: 8px 12px; background: #f8f9fa; border-radius: 6px; font-size: 12px; color: #666;">
+          <span>&#9889; </span>
+          <span id="lf-model"></span> &middot;
+          <span id="lf-tokens"></span> tokens &middot;
+          <span id="lf-time"></span>ms
+        </div>
         <div id="analysisCaveats" class="analysis-caveats hidden"></div>
       </div>
     </div>
@@ -487,6 +493,9 @@
       }).join('');
     }
 
+    var searchAbortController = null;
+    var SEARCH_TIMEOUT_MS = 120000;
+
     async function doSearch() {
       const query = queryEl.value.trim();
       if (!query) {
@@ -494,6 +503,11 @@
         return;
       }
       clearError();
+      if (searchAbortController) searchAbortController.abort();
+      searchAbortController = new AbortController();
+      const timeoutId = setTimeout(function () {
+        searchAbortController.abort();
+      }, SEARCH_TIMEOUT_MS);
       setLoading(true, 'search');
       try {
         const topK = parseInt(topKEl.value, 10);
@@ -501,7 +515,9 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, top_k: topK }),
+          signal: searchAbortController.signal,
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || res.statusText);
         resultsEl.classList.remove('hidden');
@@ -514,9 +530,14 @@
           analyzeRowEl.classList.add('hidden');
         }
       } catch (e) {
-        showError(e.message || 'Search failed.');
+        if (e.name === 'AbortError') {
+          showError('Search is taking too long. Please try again or use a shorter query.');
+        } else {
+          showError(e.message || 'Search failed.');
+        }
         analyzeRowEl.classList.add('hidden');
       } finally {
+        clearTimeout(timeoutId);
         setLoading(false, 'search');
       }
     }
@@ -548,6 +569,8 @@
         var fullText = '';
         var cases = [];
         var gotDone = false;
+        var lastDonePayload = null;
+        document.getElementById('langfuse-info').style.display = 'none';
         resultsEl.classList.remove('hidden');
         resultsTitle.textContent = 'Similar cases & analysis';
         analysisSection.classList.remove('hidden');
@@ -556,21 +579,36 @@
         analysisStreamingEl.textContent = 'Generating...';
         function applyDone() {
           analysisStreamingEl.classList.remove('generating');
+          analysisStreamingEl.classList.add('hidden');
           var analysisJson = null;
-          var raw = fullText.trim();
+          var raw = (fullText && fullText.trim()) ? fullText.trim() : '';
           if (raw) {
-            var toParse = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+            var toParse = raw.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '').trim();
             try {
               analysisJson = JSON.parse(toParse);
             } catch (e) {
-              analysisJson = null;
+              try {
+                var start = toParse.indexOf('{');
+                if (start !== -1) analysisJson = JSON.parse(toParse.slice(start));
+              } catch (e2) { analysisJson = null; }
             }
           }
-          analysisStreamingEl.classList.add('hidden');
-          if ((fullText && fullText.trim()) || analysisJson) {
-            renderAnalysis(fullText || '', analysisJson);
+          if (raw || analysisJson) {
+            renderAnalysis(raw || '', analysisJson);
           } else {
             analysisContent.innerHTML = '<p>(No analysis received.)</p>';
+          }
+          if (lastDonePayload && (lastDonePayload.model || lastDonePayload.usage || lastDonePayload.duration_ms != null)) {
+            var lfEl = document.getElementById('langfuse-info');
+            document.getElementById('lf-model').textContent = lastDonePayload.model || 'groq';
+            var total = (lastDonePayload.usage && lastDonePayload.usage.total_tokens) != null
+              ? lastDonePayload.usage.total_tokens
+              : (lastDonePayload.usage && (lastDonePayload.usage.prompt_tokens != null || lastDonePayload.usage.completion_tokens != null))
+                ? ((lastDonePayload.usage.prompt_tokens || 0) + (lastDonePayload.usage.completion_tokens || 0))
+                : '';
+            document.getElementById('lf-tokens').textContent = total !== '' ? String(total) : '';
+            document.getElementById('lf-time').textContent = lastDonePayload.duration_ms != null ? String(lastDonePayload.duration_ms) : '';
+            lfEl.style.display = 'block';
           }
         }
         while (true) {
@@ -595,6 +633,7 @@
             }
             if (data.type === 'done') {
               gotDone = true;
+              lastDonePayload = data;
               applyDone();
             }
             if (data.type === 'error') {
@@ -604,8 +643,27 @@
             }
           }
         }
-        if (!gotDone && fullText) applyDone();
-        else if (!gotDone) analysisStreamingEl.classList.add('hidden');
+        // Process any remaining buffer (e.g. final 'done' or last event)
+        if (buffer.trim()) {
+          var line = buffer.trim();
+          if (line.startsWith('data: ')) {
+            try {
+              var data = JSON.parse(line.slice(6));
+              if (data.type === 'cases' && data.cases) { cases = data.cases; renderCases(cases); }
+              if (data.type === 'token' && data.content) { fullText += data.content; analysisStreamingEl.textContent = fullText; }
+              if (data.type === 'done') { gotDone = true; lastDonePayload = data; applyDone(); }
+              if (data.type === 'error') { analysisStreamingEl.classList.remove('generating'); analysisStreamingEl.classList.add('hidden'); showError(data.message || 'Analysis failed.'); }
+            } catch (e) { /* ignore */ }
+          }
+        }
+        if (!gotDone) {
+          if (fullText) applyDone();
+          else {
+            analysisStreamingEl.classList.remove('generating');
+            analysisStreamingEl.classList.add('hidden');
+            analysisContent.innerHTML = '<p>(No analysis received.)</p>';
+          }
+        }
       } catch (e) {
         showError(e.message || 'Analysis failed.');
         analysisStreamingEl.classList.add('hidden');
