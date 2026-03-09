@@ -1,7 +1,15 @@
-# Backend only. Run: docker compose up --build
-# API: http://localhost:8000 (docs: http://localhost:8000/docs)
-# Open frontend/index.html in browser; set API base URL to http://localhost:8000
+# Backend + Frontend. Run: docker compose up --build
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000 (docs: http://localhost:8000/docs)
 services:
+  frontend:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -13,7 +21,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - chroma_data:/app/chroma_db
+      - ./chroma_db:/app/chroma_db
       - ./exports:/app/exports
     restart: unless-stopped
     healthcheck:
@@ -22,6 +30,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-
-volumes:
-  chroma_data:

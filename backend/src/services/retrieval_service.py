@@ -30,8 +30,8 @@ class RetrievalService:
         if reranker is not None:
             self._reranker = reranker
         elif settings.reranker_enabled:
-            from src.infrastructure.reranker_client import RerankerClient
-            self._reranker = RerankerClient()
+            from src.infrastructure.reranker_client import get_reranker_client
+            self._reranker = get_reranker_client()
         else:
             self._reranker = None
         # Debug: confirm reranker config at init

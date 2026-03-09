@@ -2,7 +2,7 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from src.config import get_settings
-from src.config.constants import CHUNK_SEPARATORS
+from src.config import CHUNK_SEPARATORS, get_settings
 from src.schemas.chunk import ChunkIn
 
 

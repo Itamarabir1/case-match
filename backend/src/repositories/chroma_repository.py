@@ -16,6 +16,10 @@ class ChromaRepository:
             configuration={"hnsw": {"space": "cosine"}},
         )
 
+    def delete_chunks_by_doc_id(self, doc_id: str) -> None:
+        """Remove all chunks for the given doc_id from the collection."""
+        self._collection.delete(where={"doc_id": doc_id})
+
     def add_chunks(self, chunks: list[ChunkIn], embeddings: list[list[float]]) -> None:
         ids = [c.chunk_id for c in chunks]
         metadatas = []

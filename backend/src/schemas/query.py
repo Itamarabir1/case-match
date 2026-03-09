@@ -1,7 +1,7 @@
 """Pydantic schemas for search query. Validation only."""
 from pydantic import BaseModel, Field
 
-from src.config.constants import MAX_QUERY_LENGTH_CHARS
+from src.config import MAX_QUERY_LENGTH_CHARS
 
 
 class SearchQuery(BaseModel):

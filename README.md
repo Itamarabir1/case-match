@@ -1,59 +1,59 @@
 # Law Retrieval (case-match)
 
-**זה קובץ ה-README הראשי של הפרויקט** – תיעוד, מבנה והרצה (backend, frontend, scripts).  
+**Main project README** – documentation, structure, and run instructions (backend, frontend). Everything via the web UI; server: `python backend/main.py`.  
 **Repository:** [github.com/Itamarabir1/case-match](https://github.com/Itamarabir1/case-match)
 
-## 1. סיכום השיחה
+## 1. Overview
 
-### הרעיון המרכזי
+### Core idea
 
-- **מטרה:** מערכת שמקבלת **בעיה משפטית** (טקסט) ומחזירה **תיקים/פסקי דין דומים** ואת מה שנפסק שם – **לא** חיזוי "תזכה/תפסיד".
-- **טכניקה:** חיפוש סמנטי (וקטורי) על מאגר תיקים אנגלי, עם אופציה לחיפוש היברידי (וקטור + BM25) ולאחר מכן הצגת תוצאות (ואם תרצה – סיכום עם LLM).
+- **Goal:** A system that takes a **legal problem** (text) and returns **similar cases/opinions** and what was decided – **not** “win/lose” prediction.
+- **Technique:** Semantic (vector) search over an English case corpus, with an option for hybrid search (vector + BM25) and then result display (and optionally LLM summary).
 
-### בחירות טכניות
+### Technical choices
 
-| נושא | ההחלטה |
-|------|---------|
-| **מאגר נתונים** | **CourtListener API** – תיקים/פסקי דין באנגלית; אינדוקס דרך `scripts/rebuild_first_courtlistener_cases.py`. |
-| **מה נשמר אצלך** | **וקטורים + טקסט ה-chunks** ב-Chroma; טקסט מלא ווקטורים גם ב-`exports/courtlistener_first_cases/`. |
-| **טעינת נתונים** | **Streaming** מ-CourtListener API (עם checkpoint ו-`--resume` להמשך). |
-| **מגבלת 512 טוקנים** | תיקים ארוכים → **chunking**. לא לחתוך בעיוור; להשתמש ב-**RecursiveCharacterTextSplitter** עם separators: `["\n\n", "\n", ". ", " "]` כדי לחתוך בין פסקאות/משפטים. |
-| **גודל chunk** | ~400–450 טוקנים (או ~1,200–1,600 תווים), עם **overlap** 50–100 טוקנים. |
-| **מודל embedding** | **sentence-transformers**, אנגלית + CPU: למשל `all-MiniLM-L6-v2` (קל) או `all-mpnet-base-v2` (קצת יותר איכותי). |
-| **מאגר וקטורים** | **Chroma** להתחלה; אם יהיו הרבה מאוד chunks – לשקול **FAISS**. |
-| **סדר פיתוח** | קודם **retrieval פשוט** (chunk → embed → store → query → aggregate). רק אחרי שזה עובד – להוסיף **Small-to-Big** (אם צריך LLM עם הקשר גדול) ו-**Hybrid + RRF**. |
-| **Aggregation** | כשמקבצים לפי תיק (doc_id): **לא** רק "כמה chunks מתוך ה-top" – לשקלל **ממוצע ציוני הדמיון** של ה-chunks של כל תיק. |
-| **Validation** | אחרי שליפה: לסנן chunks ריקים או **קצרים מדי** (למשל פחות מ-5 מילים או 50 תווים). |
-| **Hybrid Search** | **BM25** (מילות מפתח: מספר חוק, שם שופט) + **חיפוש וקטורי**; מיזוג תוצאות עם **RRF** (Reciprocal Rank Fusion). |
-| **Parallel** | בבניית האינדקס – **multiprocessing** (או workers) כדי לנצל CPU; לשים לב ל-RAM ולבלעדיות כתיבה ל-DB. |
-| **Small-to-Big** | אופציונלי: chunks קטנים (למשל 200 מילים) לאינדקס, ו-**parent** גדול (למשל 1000 מילים) לשליחה ל-LLM – דיוק בחיפוש + הקשר מלא. |
-
----
-
-## 2. עקרונות ארכיטקטורה ועיצוב
-
-הפרויקט מיושר ל-**Architecture Guide** (Clean Architecture, Fullstack layout): קבצי שורש (.env.example, .gitignore, .dockerignore, pyproject.toml, docker-compose עם healthcheck), backend עם src/api, services, repositories, config, pipeline; Dockerfile רב־שלבי ולא־root; config רק דרך pydantic-settings.
-
-- **Pydantic:** מודלים ל-Document, Chunk, Query, SearchResult וכו' – ולידציה על קלט/פלט.
-- **Pipeline ברור:** שלבי אינדקס ושלבי query מוגדרים (פונקציות/מודולים נפרדים).
-- **System prompt:** אם יש LLM – פרומפט קבוע (תפקיד, פורמט, מגבלות) בקובץ/משתנה נפרד.
-- **JSON Schema:** תיאור ה-API (בקשה/תגובה) – לתיעוד וולידציה.
-- **Config:** קובץ (YAML/JSON/env) למודל, גודל chunk, RRF, נתיבי DB – בלי magic numbers בקוד.
-- **לוגינג:** לוגים מובנים (למשל JSON) עם request_id, שלב, זמנים.
-- **אי-אמון:** ולידציה וסניטציה על קלט; בדיקת chunks שחזרו לפני הצגה.
+| Topic | Decision |
+|-------|----------|
+| **Data source** | **CourtListener API** – English cases/opinions; indexing via the UI (POST /index/rebuild). |
+| **What is stored locally** | **Vectors + chunk text** in Chroma; full text and vectors also in `exports/courtlistener_first_cases/`. |
+| **Data loading** | **Streaming** from CourtListener API (with checkpoint and `--resume` to continue). |
+| **512-token limit** | Long cases → **chunking**. Use **RecursiveCharacterTextSplitter** with separators: `["\n\n", "\n", ". ", " "]` to split at paragraph/sentence boundaries. |
+| **Chunk size** | ~400–450 tokens (or ~1,200–1,600 characters), with **overlap** 50–100 tokens. |
+| **Embedding model** | **sentence-transformers**, English + CPU: e.g. `all-MiniLM-L6-v2` (light) or `all-mpnet-base-v2` (higher quality). |
+| **Vector store** | **Chroma** to start; consider **FAISS** if you have very many chunks. |
+| **Development order** | First **simple retrieval** (chunk → embed → store → query → aggregate). Only then add **Small-to-Big** (if you need LLM with large context) and **Hybrid + RRF**. |
+| **Aggregation** | When grouping by case (doc_id): use **mean similarity score** of that case’s chunks, not just “how many chunks in top”. |
+| **Validation** | After retrieval: filter out empty or **too short** chunks (e.g. fewer than 5 words or 50 characters). |
+| **Hybrid Search** | **BM25** (keywords: statute number, judge name) + **vector search**; merge with **RRF** (Reciprocal Rank Fusion). |
+| **Parallel** | For index build – **multiprocessing** (or workers) to use CPU; watch RAM and write exclusivity to DB. |
+| **Small-to-Big** | Optional: small chunks (e.g. 200 words) for index, **parent** chunk (e.g. 1000 words) for LLM – retrieval precision + full context. |
 
 ---
 
-## 3. איך הפרויקט נראה (תצוגה מלמעלה)
+## 2. Architecture and design principles
 
-### 3.1 מבנה הפרויקט
+The project follows an **Architecture Guide** (Clean Architecture, fullstack layout): root files (.env.example, .gitignore, .dockerignore, pyproject.toml, docker-compose with healthcheck), backend with src/api, services, repositories, config; multi-stage non-root Dockerfile; config only via pydantic-settings.
+
+- **Pydantic:** Models for Document, Chunk, Query, SearchResult, etc. – input/output validation.
+- **Clear pipeline:** Index and query steps defined in separate functions/modules.
+- **System prompt:** If using an LLM – fixed prompt (role, format, limits) in a separate file/variable.
+- **JSON Schema:** Description of the API (request/response) – for docs and validation.
+- **Config:** File (YAML/JSON/env) for model, chunk size, RRF, DB paths – no magic numbers in code.
+- **Logging:** Structured logs (e.g. JSON) with request_id, stage, timings.
+- **Zero trust:** Validate and sanitize input; check returned chunks before display.
+
+---
+
+## 3. Project layout (top-level view)
+
+### 3.1 Project structure
 
 ```
 Law/
-├── README.md              ← תיעוד הפרויקט (קובץ אחד לכל הפרויקט)
-├── STRUCTURE.md           ← סיכום מבנה ותיקיות
-├── .env.example           ← משתנים משותפים בלבד; העתק ל-.env
-├── .gitignore             ← אחד לכל הפרויקט
+├── README.md              ← Project documentation (single file for the whole project)
+├── STRUCTURE.md           ← Structure and folder summary
+├── .env.example           ← Shared env vars only; copy to .env
+├── .gitignore             ← One per project
 ├── .dockerignore
 ├── .python-version        ← 3.12
 ├── requirements.txt
@@ -62,198 +62,170 @@ Law/
 ├── docker-compose.yml
 ├── render.yaml
 │
-├── backend/                ← שירות API
-│   ├── src/                ← api/, config/, domain/, infrastructure/, pipeline/, repositories/, schemas/, services/, utils/, app.py
+├── backend/                ← API service
+│   ├── src/                ← api/, config/, domain/, infrastructure/, prompts/, repositories/, schemas/, services/, utils/, app.py
+│   ├── main.py             ← Run server: python backend/main.py
 │   ├── Dockerfile
 │   ├── requirements.txt
-│   ├── .env.example        ← משתנים ייחודיים לבקאנד; העתק ל-backend/.env
-│   ├── .dockerignore       ← אחד לבקאנד
-│   └── README.md
+│   ├── .env.example        ← Backend-specific env; copy to backend/.env
+│   └── .dockerignore       ← One for backend
 │
 ├── frontend/
-│   ├── index.html
-│   ├── .env.example        ← משתנים ייחודיים לפרונט (לעתיד)
-│   ├── .dockerignore       ← אחד לפרונט
-│   └── README.md
-│
-├── scripts/                ← רצים משורש, מייבאים מ-backend
-│   ├── rebuild_first_courtlistener_cases.py
-│   ├── rag_analysis.py
-│   ├── query_cli.py
-│   ├── match_case_file.py
-│   ├── find_best_match.py
-│   ├── decision_support.py
-│   ├── show_index.py
-│   └── reset_index_and_data.py
+│   ├── index.html          ← Single UI: text input, Find Similar Cases, RAG analysis, results
+│   ├── .env.example        ← Frontend-specific (for future use)
+│   └── .dockerignore       ← One for frontend
 │
 ├── examples/               ← new_case.txt, sample_case.txt
-├── exports/                ← טקסטים ו-checkpoint (לא ב-Git)
-├── chroma_db/              ← DB Chroma (לא ב-Git)
+├── exports/                ← Texts and checkpoint (not in Git)
+├── chroma_db/              ← Chroma DB (not in Git)
 └── tests/                  ← unit/, integration/
 ```
 
-### 3.2 זרימת בניית האינדקס (CourtListener)
+### 3.2 Index build flow (CourtListener)
 
-1. טעינת תיקים מ-**CourtListener API** (streaming, עם checkpoint להמשך).
-2. לכל תיק: חילוץ טקסט → **chunking** (RecursiveCharacterTextSplitter, separators, גודל/overlap מתוך config).
-3. **Embedding** לכל chunk (batch).
-4. שמירה ב-**Chroma**: id, embedding, metadata (doc_id, chunk_index, text, title, citation, court, date_filed וכו').
-5. ייצוא טקסט מלא ווקטורים ל-`exports/courtlistener_first_cases/`.
+1. Load cases from **CourtListener API** (streaming, with checkpoint to resume).
+2. Per case: extract text → **chunking** (RecursiveCharacterTextSplitter, separators, size/overlap from config).
+3. **Embed** each chunk (batch).
+4. Store in **Chroma**: id, embedding, metadata (doc_id, chunk_index, text, title, citation, court, date_filed, etc.).
+5. Export full text and vectors to `exports/courtlistener_first_cases/`.
 
-האינדקס נשמר ב-`chroma_db/`; טקסטים מלאים ב-`exports/`.
+Index is stored in `chroma_db/`; full texts in `exports/`.
 
-### 3.3 זרימת חיפוש (בכל שאילתה)
+### 3.3 Search flow (per query)
 
-1. **קלט:** טקסט בעיה משפטית (ולידציה עם Pydantic – לא ריק, אורך מקסימלי).
-2. **Embedding** לשאילתה.
-3. **חיפוש:** וקטורי: top-k chunks מ-Chroma; אם hybrid: גם BM25 → מיזוג עם **RRF**.
-4. **Validation:** השלכת chunks קצרים מדי/ריקים.
-5. **Aggregation:** קיבוץ לפי `doc_id`, ציון תיק = **ממוצע ציוני** ה-chunks של אותו תיק.
-6. **פלט:** רשימת תיקים ממוינת (doc_id, ציון, אולי טקסט/ציטוטים מה-chunks).
-7. (אופציונלי) שליחה ל-**LLM** עם system prompt – רק להצגה/סיכום, לא לחיזוי תוצאה.
+1. **Input:** Legal problem text (Pydantic validation – non-empty, max length).
+2. **Embed** the query.
+3. **Retrieve:** Vector search: fetch `reranker_candidates` chunks from Chroma (default 50).
+4. **Reranker:** Cross-encoder (`ms-marco-MiniLM-L-6-v2`) re-ranks chunks by relevance to the query; scores normalized to [0,1]. Top candidates kept after reranking.
+5. **Validation:** Drop too-short or empty chunks.
+6. **Aggregation:** Group by `doc_id`; case score = **mean** of that case’s chunk scores.
+7. **Output:** Sorted list of cases (up to `top_k`, default 5) – doc_id, score, snippets, metadata.
+8. (Optional) Send to **LLM** with system prompt – for display/summary only, not outcome prediction.
 
-### 3.4 רכיבים עיקריים בקוד
+### 3.4 Main code components
 
 - **schemas (Pydantic):** `Document`, `Chunk`, `SearchQuery`, `SearchResult`, `RankedCase`.
-- **chunking:** פונקציה שמקבלת טקסט ומחזירה רשימת `Chunk` (עם doc_id, index, text).
-- **embedding:** טעינת sentence-transformers פעם אחת; פונקציה `embed(texts)`.
-- **store:** init Chroma, `add_chunks(chunks)`, `search(query_embedding, k)`.
-- **retrieval:** `search(query_text)` – embed → search → validate → aggregate → `list[RankedCase]`.
-- **scripts/rebuild_first_courtlistener_cases.py:** stream מ-CourtListener → chunking → embed → store + export.
-- **pipeline/query:** חיבור query → retrieval → תצוגה/API.
+- **chunking:** Function that takes text and returns a list of `Chunk` (doc_id, index, text).
+- **embedding:** Load sentence-transformers once; function `embed(texts)`.
+- **store:** Init Chroma, `add_chunks(chunks)`, `search(query_embedding, k)`.
+- **retrieval:** `search(query_text)` – embed → search (Chroma) → **rerank** (cross-encoder) → validate → aggregate → `list[RankedCase]`. Config: `reranker_enabled`, `reranker_candidates`, `top_k`.
+- **POST /index/rebuild:** Build index (background) – stream from CourtListener → chunking → embed → store + export.
+- **GET /cases/{doc_id}/text:** Return full case text as **PDF** (from exports; opens inline in browser).
+- **POST /analyze:** RAG – retrieve + analyze with Groq; **streams** response as SSE (cases first, then AI tokens in real time). Final result: structured `analysis_json` (Legal Pattern, Common Outcome, Key Considerations). See **Streaming (POST /analyze)** below.
+- **api + services:** Routes (search, index, analyze, cases) → services → display/API. Prompts in `src/prompts/rag.py`.
 
 ---
 
-## 4. סיכום בכמה שורות
+## 4. Short summary
 
-- **מה בונים:** מערכת retrieval על תיקים משפטיים באנגלית – "הכנס בעיה משפטית, קבל תיקים דומים ומה נפסק".
-- **איפה הנתונים:** CourtListener API; אצלך Chroma (וקטורים + metadata) + ייצוא ל-`exports/`.
-- **איך:** chunking חכם (RecursiveCharacterTextSplitter), embedding (sentence-transformers, CPU), Chroma, aggregation לפי ממוצע ציונים, validation על chunks; אופציונלי: Hybrid + RRF, Small-to-Big, LLM עם system prompt.
-- **איך הפרויקט נראה:** תיקיית config, src (api, services, domain, repositories, schemas, infrastructure, utils, pipeline), scripts לאינדקס ו-CLI, ו-chroma_db – עם pipeline ברור לאינדקס ול-query ומודלים ב-Pydantic לכל הממשקים.
+- **What we build:** Retrieval over English legal cases – “enter a legal problem, get similar cases and what was decided”.
+- **Where data lives:** CourtListener API; locally Chroma (vectors + metadata) + export under `exports/`.
+- **How:** Smart chunking (RecursiveCharacterTextSplitter), embedding (sentence-transformers, CPU), Chroma, **reranker** (cross-encoder) after vector search, aggregation by mean score, validation on chunks; optional: Hybrid + RRF, Small-to-Big, LLM with system prompt.
+- **Project layout:** config, src (api, services, repositories, schemas, infrastructure, utils), backend/main.py (server only), chroma_db – search and index build via API and web UI.
 
 ---
 
-## 5. הרצה
+## 5. Running the project
 
-**התקנת uv (אם עדיין לא):**  
-[https://docs.astral.sh/uv/](https://docs.astral.sh/uv/) או `pip install uv`
+**Install uv (if needed):**  
+[https://docs.astral.sh/uv/](https://docs.astral.sh/uv/) or `pip install uv`
 
 ```bash
-# מהתיקייה Law (שורש הפרויקט)
+# From the Law project root
 cd Law
 
-# יצירת סביבה וירטואלית + התקנת תלויות (משורש הפרויקט)
+# Create venv and install dependencies (from project root)
 uv venv
 uv sync
 
-# (Windows) הפעלת הסביבה
+# (Windows) Activate venv
 .venv\Scripts\activate
 
-# (Linux/macOS) הפעלת הסביבה
+# (Linux/macOS) Activate venv
 # source .venv/bin/activate
 
-# העתקת .env: משותף בשורש, ייחודי לבקאנד בתיקיית backend
-cp .env.example .env                    # שורש – משתנים משותפים
-cp backend/.env.example backend/.env    # בקאנד – משתנים ייחודיים (API keys וכו')
-# ערוך backend/.env והוסף COURTLISTENER_API_TOKEN, GROQ_API_KEY וכו'
+# Copy .env: shared at root, backend-specific in backend/
+cp .env.example .env                    # Root – shared vars
+cp backend/.env.example backend/.env    # Backend – API keys etc.
+# Edit backend/.env and add COURTLISTENER_API_TOKEN, GROQ_API_KEY, etc.
 
-# בניית אינדקס מ-CourtListener (ראה למטה: CourtListener – אינדוקס והמשך)
+# Index build: after starting the server – via UI or API (POST /index/rebuild, GET /index/stats, POST /index/reset).
 
-# חיפוש מ-CLI
-uv run python scripts/query_cli.py "breach of contract Section 12"
+# Start server (from root)
+uv run python backend/main.py
+# Or: cd backend && uv run uvicorn src.app:app --reload --port 8000
+# Search: web UI (Find Similar Cases) or POST http://localhost:8000/search
 
-# התאמת תיק מקובץ טקסט לתיקים דומים באינדקס
-uv run python scripts/match_case_file.py examples/sample_case.txt
-uv run python scripts/match_case_file.py examples/sample_case.txt --top-k 5
-
-# CourtListener: בדיקה (5 תיקים) או הורדת הכל (ללא --max-docs); --resume להמשך
-uv run python scripts/rebuild_first_courtlistener_cases.py --max-docs 5
-uv run python scripts/rebuild_first_courtlistener_cases.py
-uv run python scripts/rebuild_first_courtlistener_cases.py --resume
-uv run python scripts/match_case_file.py examples/sample_case.txt --top-k 3
-
-# הפעלת API (משורש – הקוד ב-backend/)
-cd backend && uv run uvicorn src.app:app --reload --port 8000
-# POST http://localhost:8000/search – תיקים דומים (retrieval)
-
-# או עם Docker
+# Or with Docker
 docker compose up --build
-# API: http://localhost:8000 – לפתוח frontend/index.html בדפדפן
+# API: http://localhost:8000 – open frontend/index.html in browser
 ```
 
-**חלופה עם pip:**  
-משורש: `pip install -r requirements.txt`. הרץ סקריפטים: `python scripts/query_cli.py "..."`.
+**Alternative with pip:**  
+From root: `pip install -r requirements.txt`. Run server: `python backend/main.py`. Search and index build – via web UI.
 
 ---
 
-### Troubleshooting (Windows) – שגיאת cache של Hugging Face
+### Troubleshooting (Windows) – Hugging Face cache error
 
-אם מופיעה השגיאה:
+If you see:
 ```text
 ERROR: Invalid disk cache: your machine does not support long paths.
 ```
-זה קורה ב-Windows כשנתיב ה-cache של Hugging Face ארוך מדי (מגבלת אורך נתיב). **פתרון:** להגדיר משתנה סביבה `HF_HOME` לנתיב **קצר**, למשל:
+This happens on Windows when the Hugging Face cache path is too long. **Fix:** Set the `HF_HOME` environment variable to a **short** path, e.g.:
 - `C:\hf_cache`
-- או `c:\Users\user\Desktop\Law\.cache\hf`
+- or `c:\Users\user\Desktop\Law\.cache\hf`
 
-ב-PowerShell לפני ההרצה:
+In PowerShell before running:
 ```powershell
 $env:HF_HOME = "C:\hf_cache"
-uv run python scripts/rebuild_first_courtlistener_cases.py
+uv run python backend/main.py
 ```
-או להגדיר `HF_HOME` במערכת (מערכת → משתני סביבה) או ב-.env אם הכלי שלך מעביר משתנים אלה לתהליך.
+Then build the index via the UI (POST /index/rebuild).  
+Or set `HF_HOME` in System → Environment variables, or in .env if your tool passes it to the process.
 
 ---
 
-### CourtListener – אינדוקס והמשך (checkpoint)
+### CourtListener – indexing and resume (checkpoint)
 
-הוסף ב-`.env` את הטוקן מ-[Developer Tools](https://www.courtlistener.com/help/api/rest/) (Your API Token):
+Add the token from [Developer Tools](https://www.courtlistener.com/help/api/rest/) (Your API Token) to `.env`:
 
 ```bash
 COURTLISTENER_API_TOKEN=your_token_here
 COURTLISTENER_BASE_URL=https://www.courtlistener.com/api/rest/v4
 ```
 
-- **חפיפה בין chunks:** נקבעת ב-config (`CHUNK_OVERLAP`, ברירת מחדל 150 תווים) – מילים משותפות בין chunks סמוכים באותו תיק.
-- **מטא-דאטה שנשמרת:** חובה: `id`, טקסט מלא, `title` (שם תיק – נמשך מ-cluster אם צריך). מומלץ: `citation`, `court`, `date_filed`, `docket_number`, `disposition` (לתמיכה ב-Decision Support). התיק המלא נשמר גם ב-`exports/.../texts`.
-- **הרצה בלי הגבלה:** ברירת מחדל – מוריד את כל התיקים. אפשר לעצור (Ctrl+C) בכל רגע; הנקודה נשמרת ב-checkpoint.
-- **המשך מהנקודה:** אחרי עצירה, הרץ עם `--resume` כדי להמשיך מהעמוד הבא (בלי למחוק את האינדקס).
+- **Chunk overlap:** Set in config (`CHUNK_OVERLAP`, default 150 characters) – shared words between adjacent chunks in a case.
+- **Stored metadata:** Required: `id`, full text, `title` (case name – from cluster if needed). Recommended: `citation`, `court`, `date_filed`, `docket_number`, `disposition` (for Decision Support). Full case text also in `exports/.../texts`.
+- **Unlimited run:** Default – downloads all cases. You can stop (Ctrl+C) anytime; progress is saved in the checkpoint.
+- **Resume:** Index build (POST /index/rebuild) resumes automatically from checkpoint if it exists.
 
+Index build via UI or API: **POST /index/rebuild** (optional: `?max_docs=5` for a test run). Texts go to `exports/courtlistener_first_cases/texts`, vectors to `exports/courtlistener_first_cases/vectors`. Checkpoint file: `exports/courtlistener_first_cases/courtlistener_checkpoint.json`. The index currently has about **50,000** cases (per checkpoint).
+
+**Index build and rollback from CLI (from project root):**
 ```bash
-# בדיקה מהירה (5 תיקים)
-uv run python scripts/rebuild_first_courtlistener_cases.py --max-docs 5
-
-# הורדת הכל (ללא הגבלה); לעצור ידנית – checkpoint נשמר אוטומטית
-uv run python scripts/rebuild_first_courtlistener_cases.py
-
-# המשך מאותה נקודה אחרי עצירה
-uv run python scripts/rebuild_first_courtlistener_cases.py --resume
-
-uv run python scripts/match_case_file.py examples/sample_case.txt --top-k 3
+# Download/resume index (with automatic checkpoint)
+python backend/main.py build-index
+# Limit number of cases (e.g. for testing)
+python backend/main.py build-index --max-docs 100
+# Rollback: revert to a target doc count (removes “last” docs from Chroma, texts, vectors and updates checkpoint)
+python backend/main.py rollback --to-docs 50000
 ```
 
-הטקסטים והווקטורים יישמרו ב-`exports/courtlistener_first_cases/texts` ו-`exports/courtlistener_first_cases/vectors`. קובץ ה-checkpoint: `exports/courtlistener_first_cases/courtlistener_checkpoint.json`.
+### Top 5 similar cases
 
-### 5 התיקים הכי דומים (CLI)
+Via the UI: “Find Similar Cases” (or POST /search) – returns 5 similar cases (default `TOP_K=5`).
 
-`query_cli` (שאילתה) או `match_case_file` (קובץ תיק) – מחזירים 5 תיקים דומים (ברירת מחדל `TOP_K=5`).
+### RAG – analyze new case vs similar cases (LLM)
 
-### Decision Support – סטטיסטיקה על תיקים דומים
+Build **context** from the top 5 similar cases (full text from `exports/.../texts` or snippets), add the **new case** text from the user, and send to **Groq API** (cloud LLM) for structured analysis: Legal Pattern, Common Outcome, Key Considerations.
 
-**מתוך 5 תיקים דומים** (ברירת מחדל): התובע ניצח / הנתבע ניצח, והסתברות הצלחה לתובע. דורש `disposition` באינדקס.
+**Example input (the “prompt”):** The text you type in the UI (or paste from a file) is the **new case** description that gets sent to the LLM. You can use the sample in `examples/new_case.txt` as a template: paste its contents into the text box, run “Find Similar Cases”, then “Analyze these results with AI”. The same string is used both as the search query and as the `{new_case}` placeholder in the RAG user prompt (see `backend/src/prompts/rag.py`).
 
-```bash
-uv run python scripts/decision_support.py "בעיה משפטית"
-uv run python scripts/decision_support.py examples/sample_case.txt
-```
+**Streaming (POST /analyze):** The `/analyze` endpoint returns **Server-Sent Events (SSE)** instead of a single JSON body. Flow: (1) Backend runs retrieval and sends a first event with `type: "cases"` and the list of similar cases. (2) Then it streams the Groq LLM response token-by-token in events `type: "token"` with `content`. (3) A final event `type: "done"` signals the end. The frontend shows cases immediately, then displays the AI analysis text in real time as tokens arrive; when `done` is received it parses the accumulated JSON and renders the structured view (Legal Pattern, Common Outcome, Key Considerations). This avoids waiting for the full response before anything appears.
 
-### RAG – ניתוח תיק חדש מול תיקים דומים (LLM)
+**Output:** Accumulated stream is parsed as `analysis_json` (Pydantic/JSON Schema: `legal_pattern`, `common_outcome`, `key_considerations`, optional `summary`, `caveats`). Prompts (system + user template) are in `backend/src/prompts/rag.py`.
 
-מרכיב **context** מחמשת התיקים הכי דומים (טקסט מלא מ-`exports/.../texts` או snippets), מוסיף את **התיק החדש** שהמשתמש הכניס, ושולח ל-**Groq API** (LLM בענן) לניתוח מובנה: Similarity Analysis, Legal Pattern, Common Outcome.
+**Usage:** Via API – `POST /analyze` (frontend: “Analyze these results with AI” after search). Settings in `.env`: `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_BASE_URL`, `EXPORTS_TEXTS_DIR`.
 
-```bash
-uv run python scripts/rag_analysis.py "טקסט התיק החדש"
-uv run python scripts/rag_analysis.py examples/sample_case.txt
-```
-
-הגדרות ב-`.env`: `GROQ_API_KEY`, `GROQ_MODEL`, `GROQ_BASE_URL`, `EXPORTS_TEXTS_DIR`.
+**Single case view:** `GET /cases/{doc_id}/text` – returns the case text as **PDF** (application/pdf) for reading or download.

@@ -4,68 +4,63 @@ from pathlib import Path
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
 
-from src.api.routes import search_router
+from src.api.routes import (
+    analyze_router,
+    cases_router,
+    index_router,
+    search_router,
+)
+from src.api.setup import register_exception_handler, register_static_and_root
 from src.config import get_settings
-from src.schemas.analyze import AnalyzeRequest, AnalyzeResponse
-from src.services.rag_service import GroqUnavailableError, run_rag
+
+_CORS_ORIGINS = ("http://localhost:3000", "http://127.0.0.1:3000")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load config on startup. No heavy init (Chroma/embedding lazy)."""
+    """Preload models and clients at startup so first request is fast."""
+    from src.infrastructure.chroma_client import get_chroma_client
+    from src.infrastructure.embedding_client import get_embedding_client
+    from src.infrastructure.reranker_client import get_reranker_client
+
     s = get_settings()
-    print(f"[RERANKER] At app startup: reranker_enabled={s.reranker_enabled}")
+    print("[STARTUP] Loading embedding model...")
+    get_embedding_client()
+    if s.reranker_enabled:
+        print("[STARTUP] Loading reranker model...")
+        get_reranker_client()
+    print("[STARTUP] Connecting to Chroma...")
+    get_chroma_client()
+    print("[STARTUP] All models ready!")
     yield
-    # shutdown if needed
-    pass
 
 
 def create_app() -> FastAPI:
+    backend_root = Path(__file__).resolve().parent.parent
     app = FastAPI(
         title="Law Retrieval API",
         description="Semantic search over legal cases",
         lifespan=lifespan,
     )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(_CORS_ORIGINS),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    register_exception_handler(app, _CORS_ORIGINS)
+
     app.include_router(search_router)
+    app.include_router(index_router)
+    app.include_router(analyze_router)
+    app.include_router(cases_router)
 
-    # POST /analyze – RAG: retrieval + Groq analysis
-    @app.post("/analyze", response_model=AnalyzeResponse)
-    def analyze_endpoint(body: AnalyzeRequest) -> AnalyzeResponse:
-        """Run retrieval and Groq LLM analysis on the given query."""
-        try:
-            cases, analysis, model = run_rag(query=body.query, top_k=body.top_k)
-            return AnalyzeResponse(query=body.query, cases=cases, analysis=analysis, model=model)
-        except GroqUnavailableError as e:
-            raise HTTPException(status_code=503, detail=e.message)
-        except RuntimeError as e:
-            raise HTTPException(status_code=502, detail=str(e))
-
-    # When API_ONLY=1 (e.g. backend container), skip static; frontend is served separately
-    api_only = os.getenv("API_ONLY", "").strip() == "1"
-    if not api_only:
-        root_dir = Path(__file__).resolve().parent.parent
-        frontend_dir = root_dir / "frontend"
-        static_dir = root_dir / "static"
-        if frontend_dir.exists():
-            app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
-        elif static_dir.exists():
-            app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-        @app.get("/")
-        def root():
-            return RedirectResponse(url="/static/index.html")
-    else:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+    if os.getenv("API_ONLY", "").strip() != "1":
+        register_static_and_root(app, backend_root)
 
     return app
 
@@ -73,12 +68,9 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-if __name__ == "__main__":
+def run_server() -> None:
+    """Run uvicorn. Used by backend/main.py when no subcommand or 'serve'."""
     import uvicorn
-    settings = get_settings()
-    uvicorn.run(
-        "src.app:app",
-        host="0.0.0.0",
-        port=settings.port,
-        reload=(settings.env == "development"),
-    )
+
+    s = get_settings()
+    uvicorn.run("src.app:app", host="0.0.0.0", port=s.port, reload=(s.env == "development"))

@@ -1,3 +1,3 @@
-from src.domain.entities.document import Document
+# Entities (document removed – was unused)
 
-__all__ = ["Document"]
+__all__: list[str] = []

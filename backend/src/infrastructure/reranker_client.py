@@ -25,6 +25,17 @@ def _calibrate(raw_score: float) -> float:
     return min(1.0, max(0.0, RERANKER_SCALE * s + RERANKER_SHIFT))
 
 
+_reranker_client: "RerankerClient | None" = None
+
+
+def get_reranker_client() -> "RerankerClient":
+    """Return singleton RerankerClient. Loads model on first call."""
+    global _reranker_client
+    if _reranker_client is None:
+        _reranker_client = RerankerClient()
+    return _reranker_client
+
+
 class RerankerClient:
     """Rerank chunks by relevance to the query using a cross-encoder. Scores normalized to [0, 1]."""
 

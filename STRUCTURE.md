@@ -1,44 +1,43 @@
-# מבנה הפרויקט
+# Project structure
 
-## חוקים: .gitignore, .dockerignore, .env / .env.example
+## Rules: .gitignore, .dockerignore, .env / .env.example
 
-- **.gitignore** – **אחד לכל הפרויקט** (בשורש). קובע מה לא נכנס ל-commit בכל התיקיות.
-- **.dockerignore** – **אחד לבקאנד ואחד לפרונט**: `backend/.dockerignore`, `frontend/.dockerignore`. כל שירות קובע מה לא נשלח ל-build של ה-Docker שלו.
-- **.env.example** ו-**.env** (הקובץ האמיתי):
-  - **משותף** (בקאנד + פרונט או compose) → **בשורש**: `.env.example` / `.env`
-  - **ייחודי לבקאנד** → **backend/.env.example** / **backend/.env**
-  - **ייחודי לפרונט** → **frontend/.env.example** / **frontend/.env**  
-  docker-compose טוען: `env_file: [.env, backend/.env]` (שורש + בקאנד).
+- **.gitignore** – **one per project** (at root). Defines what is not committed across all folders.
+- **.dockerignore** – **one per backend and one per frontend**: `backend/.dockerignore`, `frontend/.dockerignore`. Each service defines what is not sent to its Docker build.
+- **.env.example** and **.env** (the real file):
+  - **Shared** (backend + frontend or compose) → **at root**: `.env.example` / `.env`
+  - **Backend-specific** → **backend/.env.example** / **backend/.env**
+  - **Frontend-specific** → **frontend/.env.example** / **frontend/.env**  
+  docker-compose loads: `env_file: [.env, backend/.env]` (root + backend).
 
 ---
 
-## קבצים בשורש
+## Root files
 
-| קובץ | תפקיד |
-|------|--------|
-| **README.md** | תיעוד לכל הפרויקט |
-| **.gitignore** | אחד לכל הפרויקט – מה לא ב-commit |
-| **.dockerignore** | (לשימוש ב-build משורש, אם יש) |
-| **.env.example** | משתנים **משותפים** בלבד (להעתקה ל-.env) |
+| File | Purpose |
+|------|---------|
+| **README.md** | Documentation for the whole project |
+| **.gitignore** | One per project – what not to commit |
+| **.dockerignore** | (For use when building from root, if present) |
+| **.env.example** | **Shared** env vars only (copy to .env) |
 | **requirements.txt**, **pyproject.toml**, **docker-compose.yml** | |
 
 ---
 
-## תיקיות – כל שירות עם .dockerignore ו-.env.example משלו
+## Folders – each service with its own .dockerignore and .env.example
 
-| תיקייה | תוכן |
-|--------|--------|
-| **backend/** | **Dockerfile**, **.dockerignore**, **.env.example** (משתנים ייחודיים לבקאנד). קוד: `src/`. |
-| **frontend/** | **.dockerignore**, **.env.example** (משתנים ייחודיים לפרונט). `index.html`, README. אין Dockerfile כרגע (סטטי). |
-| **scripts/** | סקריפטים (אינדוקס, RAG, CLI) – רצים משורש, מייבאים מ-`backend`. |
-| **examples/** | קבצי דוגמה. |
-| **exports/** | ייצוא טקסטים (לא ב-Git). |
-| **chroma_db/** | DB של Chroma (לא ב-Git). |
-| **tests/** | בדיקות. |
+| Folder | Contents |
+|--------|----------|
+| **backend/** | **Dockerfile**, **.dockerignore**, **.env.example** (backend-specific env). Code: `src/`. |
+| **frontend/** | **.dockerignore**, **.env.example** (frontend-specific). `index.html`. No Dockerfile currently (static). |
+| **examples/** | Example files. |
+| **exports/** | Exported texts (not in Git). |
+| **chroma_db/** | Chroma DB (not in Git). |
+| **tests/** | Tests. |
 
 ---
 
-## הרצה
+## Running
 
-- **מקומי:** משורש `uv sync` (או `pip install -r requirements.txt`), אז `cd backend && uvicorn src.app:app --reload --port 8000`.
-- **Docker:** משורש `docker compose up --build` → API ב-http://localhost:8000. לפתוח `frontend/index.html` בדפדפן.
+- **Local:** From root run `uv sync` (or `pip install -r requirements.txt`), then `python backend/main.py` (or `cd backend && uvicorn src.app:app --reload --port 8000`).
+- **Docker:** From root run `docker compose up --build` → API at http://localhost:8000. Open `frontend/index.html` in the browser.
